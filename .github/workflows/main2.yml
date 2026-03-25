@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages1
 on:
   # Триггер: запускать при пуше в main (или master)
   push:
-    branches: \[ "main" \]
+    branches: [ "main" ]
   # Также можно запускать вручную
   workflow_dispatch:
 
