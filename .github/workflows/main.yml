@@ -7,7 +7,7 @@ on:
   # Также можно запускать вручную
   workflow_dispatch:
 
-\# Указываем права на запись в GitHub Pages
+# Указываем права на запись в GitHub Pages
 permissions:
   contents: read
   pages: write
