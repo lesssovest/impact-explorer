@@ -178,9 +178,7 @@ export default function MeasureImpactSlider({
                     <Cell
                       key={entry.position}
                       fill={
-                        i === 0
-                          ? "hsl(var(--risk-base))"
-                          : i <= position
+                        i <= position
                           ? entry.ale > aleBase
                             ? "hsl(var(--risk-negative))"
                             : "hsl(var(--risk-positive))"
