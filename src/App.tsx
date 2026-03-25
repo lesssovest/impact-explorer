@@ -22,7 +22,6 @@ const App = () => (
       {/\* LOVABLE_KEEP_START \*/}
       <BrowserRouter basename={basename}>
       {/\* LOVABLE_KEEP_END \*/}
-      <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
