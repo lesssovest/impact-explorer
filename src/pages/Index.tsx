@@ -1,16 +1,67 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import MeasureImpactSlider from "@/components/MeasureImpactSlider";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const demoMeasures = [
+  {
+    id: "KUPER-MSR-30",
+    name: "Проведение еженедельного пересчета оборотной тары у супервайзеров",
+    status: "implemented" as const,
+    aleAfter: 4_200_000,
+    effectiveness: 30,
+    cost: 500_000,
+    order: 1,
+  },
+  {
+    id: "KUPER-MSR-190",
+    name: "Разработка идентификации и контроля риска по хищению",
+    status: "deleted" as const,
+    aleAfter: 3_800_000,
+    effectiveness: 10,
+    cost: 1_200_000,
+    order: 2,
+  },
+  {
+    id: "KUPER-MSR-71",
+    name: "Идентификация и контроль рисков хищения и списания",
+    status: "new" as const,
+    aleAfter: 2_500_000,
+    effectiveness: 40,
+    cost: 800_000,
+    order: 3,
+  },
+  {
+    id: "KUPER-MSR-45",
+    name: "Внедрение системы видеонаблюдения на складах",
+    status: "implemented" as const,
+    aleAfter: 1_800_000,
+    effectiveness: 28,
+    cost: 2_000_000,
+    order: 4,
+  },
+];
+
+const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-4xl p-4 md:p-8 space-y-6">
+        <div>
+          <p className="text-xs text-muted-foreground">Риск · Активный</p>
+          <h1 className="text-2xl font-bold text-foreground mt-1">
+            Пр_06 Хищение ТМЦ/имущества
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Риски внутреннего мошенничества
+          </p>
+        </div>
+
+        <MeasureImpactSlider
+          riskId="PR-06"
+          aleBase={6_000_000}
+          measures={demoMeasures}
+          onMeasureClick={(id) => console.log("Navigate to measure:", id)}
+        />
+      </div>
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
