@@ -3,40 +3,49 @@ import MeasureImpactSlider from "@/components/MeasureImpactSlider";
 const demoMeasures = [
   {
     id: "KUPER-MSR-30",
-    name: "Проведение еженедельного пересчета оборотной тары у супервайзеров",
+    name: "Еженедельный пересчет оборотной тары",
     status: "implemented" as const,
     aleAfter: 4_200_000,
     effectiveness: 30,
     cost: 500_000,
     order: 1,
-  },
-  {
-    id: "KUPER-MSR-190",
-    name: "Разработка идентификации и контроля риска по хищению",
-    status: "deleted" as const,
-    aleAfter: 3_800_000,
-    effectiveness: 10,
-    cost: 1_200_000,
-    order: 2,
+    implementedAt: "2025-03",
   },
   {
     id: "KUPER-MSR-71",
-    name: "Идентификация и контроль рисков хищения и списания",
+    name: "Идентификация и контроль рисков хищения",
     status: "new" as const,
     aleAfter: 2_500_000,
     effectiveness: 40,
     cost: 800_000,
-    order: 3,
+    order: 2,
+    implementedAt: "2025-07",
   },
   {
     id: "KUPER-MSR-45",
-    name: "Внедрение системы видеонаблюдения на складах",
+    name: "Система видеонаблюдения на складах",
     status: "implemented" as const,
     aleAfter: 1_800_000,
     effectiveness: 28,
     cost: 2_000_000,
-    order: 4,
+    order: 3,
+    implementedAt: "2025-11",
   },
+];
+
+const demoEvents = [
+  { id: "evt-1", date: "2025-01", amount: 320_000, description: "Хищение со склада №3" },
+  { id: "evt-2", date: "2025-02", amount: 150_000, description: "Недостача при инвентаризации" },
+  { id: "evt-3", date: "2025-05", amount: 80_000, description: "Пропажа ТМЦ (мелкая)" },
+  { id: "evt-4", date: "2025-08", amount: 200_000, description: "Кража оборудования" },
+  { id: "evt-5", date: "2025-10", amount: 50_000, description: "Недостача расходных материалов" },
+  { id: "evt-6", date: "2026-01", amount: 30_000, description: "Мелкая недостача" },
+];
+
+const demoAleHistory = [
+  { month: "2024-12", ale: 6_200_000 },
+  { month: "2025-01", ale: 6_100_000 },
+  { month: "2025-02", ale: 6_000_000 },
 ];
 
 const Index = () => {
@@ -57,6 +66,8 @@ const Index = () => {
           riskId="PR-06"
           aleBase={6_000_000}
           measures={demoMeasures}
+          events={demoEvents}
+          aleHistory={demoAleHistory}
           onMeasureClick={(id) => console.log("Navigate to measure:", id)}
         />
       </div>
