@@ -14,19 +14,18 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  Cell,
-  LabelList,
-  Line,
+  Area,
   ComposedChart,
   ReferenceLine,
+  Scatter,
+  Cell,
+  Dot,
 } from "recharts";
-import { AlertTriangle, Info, Sparkles, Target } from "lucide-react";
+import { AlertTriangle, Info, Sparkles, Target, Zap } from "lucide-react";
 
 export interface Measure {
   id: string;
@@ -36,24 +35,27 @@ export interface Measure {
   effectiveness: number;
   cost: number;
   order: number;
+  implementedAt: string; // ISO date or YYYY-MM
 }
 
-interface Scenario {
-  position: number;
-  label: string;
-  shortLabel: string;
-  appliedMeasures: string[];
+export interface RiskEvent {
+  id: string;
+  date: string; // ISO date or YYYY-MM
+  amount: number; // loss amount
+  description: string;
+}
+
+export interface AleHistoryPoint {
+  month: string; // YYYY-MM
   ale: number;
-  totalCost: number;
-  measureId?: string;
-  measureStatus?: Measure["status"];
-  disabled?: boolean;
 }
 
 interface MeasureImpactSliderProps {
   riskId: string;
   aleBase: number;
   measures: Measure[];
+  events?: RiskEvent[];
+  aleHistory?: AleHistoryPoint[];
   onMeasureClick?: (measureId: string) => void;
 }
 
@@ -63,10 +65,47 @@ function formatCurrency(value: number): string {
   return `${value.toFixed(0)} ₽`;
 }
 
+function parseMonth(dateStr: string): string {
+  return dateStr.slice(0, 7); // YYYY-MM
+}
+
+function monthLabel(ym: string): string {
+  const [y, m] = ym.split("-");
+  const months = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"];
+  return `${months[parseInt(m, 10) - 1]} ${y.slice(2)}`;
+}
+
+function monthsBetween(a: string, b: string): number {
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  return (by - ay) * 12 + (bm - am);
+}
+
+function addMonths(ym: string, n: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const total = y * 12 + (m - 1) + n;
+  const ny = Math.floor(total / 12);
+  const nm = (total % 12) + 1;
+  return `${ny}-${String(nm).padStart(2, "0")}`;
+}
+
+interface TimelinePoint {
+  month: string;
+  monthIdx: number;
+  ale: number;
+  measureId?: string;
+  measureName?: string;
+  measureStatus?: Measure["status"];
+  isMeasure: boolean;
+  events: RiskEvent[];
+}
+
 export default function MeasureImpactSlider({
   riskId,
   aleBase,
   measures,
+  events = [],
+  aleHistory = [],
   onMeasureClick,
 }: MeasureImpactSliderProps) {
   const activeMeasures = useMemo(
@@ -77,61 +116,177 @@ export default function MeasureImpactSlider({
     [measures]
   );
 
-  const scenarios: Scenario[] = useMemo(() => {
-    let cumCost = 0;
-    return activeMeasures.map((m, i) => {
-      cumCost += m.cost;
-      const disabled = !m.aleAfter && !m.effectiveness;
-      return {
-        position: i,
-        label: activeMeasures
-          .slice(0, i + 1)
-          .map((_, idx) => `Мера ${idx + 1}`)
-          .join(" + "),
-        shortLabel: `М${i + 1}`,
-        appliedMeasures: activeMeasures.slice(0, i + 1).map((x) => x.id),
-        ale: disabled ? (i > 0 ? activeMeasures[i - 1].aleAfter : aleBase) : m.aleAfter,
-        totalCost: cumCost,
-        measureId: m.id,
-        measureStatus: m.status,
-        disabled,
-      } satisfies Scenario;
+  // Build timeline data
+  const { timelineData, minMonth, maxMonth, measureMonthIndices, firstMeasureIdx } = useMemo(() => {
+    if (activeMeasures.length === 0) {
+      return { timelineData: [], minMonth: "", maxMonth: "", measureMonthIndices: [], firstMeasureIdx: 0 };
+    }
+
+    // Get all measure months
+    const measureMonths = activeMeasures.map((m) => parseMonth(m.implementedAt));
+    const eventMonths = events.map((e) => parseMonth(e.date));
+    const historyMonths = aleHistory.map((h) => h.month);
+
+    const allMonths = [...measureMonths, ...eventMonths, ...historyMonths].sort();
+    
+    // Determine range: start 2 months before first measure (for pre-measure view), end 2 months after last
+    const firstMeasureMonth = measureMonths[0];
+    const lastMonth = allMonths[allMonths.length - 1];
+    
+    const rangeStart = addMonths(firstMeasureMonth, -3);
+    const rangeEnd = addMonths(lastMonth, 2);
+    
+    const totalMonths = monthsBetween(rangeStart, rangeEnd);
+    
+    // Build month-by-month data
+    const data: TimelinePoint[] = [];
+    const mIndices: number[] = [];
+    
+    // Create a map of history ALE values
+    const historyMap = new Map<string, number>();
+    aleHistory.forEach((h) => historyMap.set(h.month, h.ale));
+    
+    // Create a map of events by month
+    const eventsByMonth = new Map<string, RiskEvent[]>();
+    events.forEach((e) => {
+      const m = parseMonth(e.date);
+      if (!eventsByMonth.has(m)) eventsByMonth.set(m, []);
+      eventsByMonth.get(m)!.push(e);
     });
-  }, [aleBase, activeMeasures]);
+    
+    // Create a sorted list of measure implementations with their ALE impact
+    const measureTimeline = activeMeasures.map((m) => ({
+      month: parseMonth(m.implementedAt),
+      aleAfter: m.aleAfter,
+      id: m.id,
+      name: m.name,
+      status: m.status,
+      effectiveness: m.effectiveness,
+    }));
+    
+    let fmi = 0;
+    
+    for (let i = 0; i <= totalMonths; i++) {
+      const currentMonth = addMonths(rangeStart, i);
+      
+      // Determine which measure is the latest active at this month
+      const activeMeasuresAtMonth = measureTimeline.filter(
+        (mt) => mt.month <= currentMonth
+      );
+      
+      // Determine ALE at this month
+      let ale: number;
+      if (activeMeasuresAtMonth.length === 0) {
+        // Before any measure - use history or aleBase
+        ale = historyMap.get(currentMonth) ?? aleBase;
+      } else {
+        const lastActiveMeasure = activeMeasuresAtMonth[activeMeasuresAtMonth.length - 1];
+        ale = lastActiveMeasure.aleAfter;
+      }
+      
+      // Check if a measure was implemented this month
+      const measureThisMonth = measureTimeline.find((mt) => mt.month === currentMonth);
+      
+      if (measureThisMonth) {
+        mIndices.push(i);
+        if (mIndices.length === 1) fmi = i;
+      }
+      
+      data.push({
+        month: currentMonth,
+        monthIdx: i,
+        ale,
+        measureId: measureThisMonth?.id,
+        measureName: measureThisMonth?.name,
+        measureStatus: measureThisMonth?.status,
+        isMeasure: !!measureThisMonth,
+        events: eventsByMonth.get(currentMonth) || [],
+      });
+    }
+    
+    return {
+      timelineData: data,
+      minMonth: rangeStart,
+      maxMonth: rangeEnd,
+      measureMonthIndices: mIndices,
+      firstMeasureIdx: fmi,
+    };
+  }, [aleBase, activeMeasures, events, aleHistory]);
 
-  const [position, setPosition] = useState(0);
-  const current = scenarios[position] ?? scenarios[0];
+  const [sliderValue, setSliderValue] = useState(timelineData.length - 1);
 
-  const impact = aleBase - current.ale;
+  // Calculate which measures are active at current slider position
+  const currentPoint = timelineData[sliderValue] ?? timelineData[timelineData.length - 1];
+  
+  // Determine the effective ALE: if slider is between measures, use previous measure's ALE
+  const effectiveAle = useMemo(() => {
+    if (!currentPoint) return aleBase;
+    
+    // Find the last measure at or before current position
+    const lastMeasureBeforeCurrent = measureMonthIndices
+      .filter((idx) => idx <= sliderValue)
+      .pop();
+    
+    if (lastMeasureBeforeCurrent === undefined) return aleBase;
+    
+    // Check if there's at least one event after this measure and before/at slider
+    const measureMonth = timelineData[lastMeasureBeforeCurrent]?.month;
+    const nextMeasureIdx = measureMonthIndices.find((idx) => idx > lastMeasureBeforeCurrent);
+    
+    // Find events between last measure and current position
+    const eventsInRange = timelineData
+      .slice(lastMeasureBeforeCurrent + 1, sliderValue + 1)
+      .some((p) => p.events.length > 0);
+    
+    // If no events after this measure yet, use previous measure's ALE
+    if (!eventsInRange && lastMeasureBeforeCurrent === measureMonthIndices[measureMonthIndices.length - 1]) {
+      // This is the last measure - just show its ALE
+      return timelineData[lastMeasureBeforeCurrent].ale;
+    }
+    
+    return currentPoint.ale;
+  }, [currentPoint, sliderValue, measureMonthIndices, timelineData, aleBase]);
+
+  const activeMeasuresAtSlider = useMemo(() => {
+    if (!currentPoint) return [];
+    return activeMeasures.filter((m) => {
+      const mMonth = parseMonth(m.implementedAt);
+      return mMonth <= currentPoint.month;
+    });
+  }, [currentPoint, activeMeasures]);
+
+  const totalCost = useMemo(
+    () => activeMeasuresAtSlider.reduce((sum, m) => sum + m.cost, 0),
+    [activeMeasuresAtSlider]
+  );
+
+  const impact = aleBase - effectiveAle;
   const efficiency = aleBase > 0 ? ((impact / aleBase) * 100).toFixed(1) : "0";
   const roi =
-    current.totalCost > 0
-      ? (((impact - current.totalCost) / current.totalCost) * 100).toFixed(0)
+    totalCost > 0
+      ? (((impact - totalCost) / totalCost) * 100).toFixed(0)
       : "—";
   const payback =
-    impact > 0 && current.totalCost > 0
-      ? (current.totalCost / (impact / 12)).toFixed(1)
+    impact > 0 && totalCost > 0
+      ? (totalCost / (impact / 12)).toFixed(1)
       : "—";
-  const isNegative = current.ale > aleBase;
+  const isNegative = effectiveAle > aleBase;
 
-  const chartData = useMemo(
+  // Visible events up to slider position
+  const visibleEvents = useMemo(
     () =>
-      scenarios.map((s) => ({
-        name: s.shortLabel,
-        ale: s.ale,
-        position: s.position,
-      })),
-    [scenarios]
+      timelineData
+        .slice(0, sliderValue + 1)
+        .flatMap((p) => p.events),
+    [timelineData, sliderValue]
   );
 
   const handleSliderChange = useCallback(
     (val: number[]) => {
-      let target = val[0];
-      // Skip disabled positions
-      while (target > 0 && scenarios[target]?.disabled) target--;
-      setPosition(target);
+      const target = Math.max(val[0], firstMeasureIdx);
+      setSliderValue(target);
     },
-    [scenarios]
+    [firstMeasureIdx]
   );
 
   if (activeMeasures.length === 0) {
@@ -147,7 +302,34 @@ export default function MeasureImpactSlider({
     );
   }
 
-  const maxScenarios = scenarios.length - 1;
+  // Chart data: only show up to slider for the filled area
+  const chartDataFull = timelineData.map((p, i) => ({
+    name: monthLabel(p.month),
+    month: p.month,
+    ale: p.ale,
+    aleVisible: i <= sliderValue ? p.ale : undefined,
+    aleFuture: i >= sliderValue ? p.ale : undefined,
+    eventAmount: p.events.length > 0 ? p.events.reduce((s, e) => s + e.amount, 0) : undefined,
+    hasEvent: p.events.length > 0,
+    isMeasure: p.isMeasure,
+    idx: i,
+  }));
+
+  // Custom dot for events
+  const EventDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (!payload?.hasEvent || payload.idx > sliderValue) return null;
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={5}
+        fill="hsl(var(--risk-negative))"
+        stroke="hsl(var(--background))"
+        strokeWidth={2}
+      />
+    );
+  };
 
   return (
     <Card className="border border-border bg-card overflow-hidden">
@@ -161,108 +343,183 @@ export default function MeasureImpactSlider({
       <CardContent className="space-y-6">
         {/* Chart */}
         <div className="w-full overflow-x-auto">
-          <div className="min-w-[320px]" style={{ height: 200 }}>
+          <div className="min-w-[320px]" style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+              <ComposedChart
+                data={chartDataFull}
+                margin={{ top: 20, right: 10, left: 10, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10 }}
+                  className="fill-muted-foreground"
+                  interval={Math.max(0, Math.floor(chartDataFull.length / 8))}
+                />
                 <YAxis
                   tickFormatter={(v) => formatCurrency(v)}
                   tick={{ fontSize: 11 }}
                   width={70}
                   className="fill-muted-foreground"
                 />
-                <ReferenceLine y={aleBase} stroke="hsl(var(--risk-neutral))" strokeDasharray="4 4" />
-                <Bar dataKey="ale" radius={[4, 4, 0, 0]} animationDuration={500}>
-                  {chartData.map((entry, i) => (
-                    <Cell
-                      key={entry.position}
-                      fill={
-                        i <= position
-                          ? entry.ale > aleBase
-                            ? "hsl(var(--risk-negative))"
-                            : "hsl(var(--risk-positive))"
-                          : "hsl(var(--risk-neutral) / 0.3)"
+                {/* Base ALE reference */}
+                <ReferenceLine
+                  y={aleBase}
+                  stroke="hsl(var(--risk-neutral))"
+                  strokeDasharray="4 4"
+                  label={{
+                    value: `База: ${formatCurrency(aleBase)}`,
+                    position: "insideTopRight",
+                    style: { fontSize: 10, fill: "hsl(var(--risk-neutral))" },
+                  }}
+                />
+                {/* Measure implementation lines */}
+                {timelineData
+                  .filter((p) => p.isMeasure)
+                  .map((p) => (
+                    <ReferenceLine
+                      key={p.measureId}
+                      x={monthLabel(p.month)}
+                      stroke={
+                        p.measureStatus === "new"
+                          ? "hsl(var(--risk-warning))"
+                          : "hsl(var(--risk-base))"
                       }
+                      strokeDasharray="4 4"
+                      strokeWidth={1.5}
+                      label={{
+                        value: p.measureName?.slice(0, 20) ?? "",
+                        position: "insideTopLeft",
+                        style: {
+                          fontSize: 9,
+                          fill:
+                            p.measureStatus === "new"
+                              ? "hsl(var(--risk-warning))"
+                              : "hsl(var(--risk-base))",
+                        },
+                      }}
                     />
                   ))}
-                  <LabelList
-                    dataKey="ale"
-                    position="top"
-                    formatter={(v: number) => formatCurrency(v)}
-                    style={{ fontSize: 11, fill: "hsl(var(--risk-text))" }}
-                  />
-                </Bar>
-                <Line
-                  type="monotone"
-                  dataKey="ale"
-                  stroke="hsl(var(--risk-base))"
+                {/* Visible ALE area */}
+                <Area
+                  type="stepAfter"
+                  dataKey="aleVisible"
+                  fill="hsl(var(--risk-positive) / 0.15)"
+                  stroke="hsl(var(--risk-positive))"
                   strokeWidth={2}
-                  dot={false}
-                  strokeDasharray="6 3"
-                  animationDuration={500}
+                  animationDuration={300}
+                  connectNulls={false}
+                />
+                {/* Future ALE (dimmed) */}
+                <Area
+                  type="stepAfter"
+                  dataKey="aleFuture"
+                  fill="hsl(var(--risk-neutral) / 0.08)"
+                  stroke="hsl(var(--risk-neutral) / 0.3)"
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  animationDuration={300}
+                  connectNulls={false}
+                />
+                {/* Event dots */}
+                <Scatter
+                  dataKey="eventAmount"
+                  shape={<EventDot />}
                 />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Slider */}
+        {/* Timeline slider */}
         <div className="space-y-3 px-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+            <span>{monthLabel(timelineData[firstMeasureIdx]?.month ?? minMonth)}</span>
+            <div className="flex-1" />
+            <span>{monthLabel(maxMonth)}</span>
+          </div>
           <Slider
-            value={[position]}
+            value={[sliderValue]}
             onValueChange={handleSliderChange}
-            min={0}
-            max={maxScenarios}
+            min={firstMeasureIdx}
+            max={timelineData.length - 1}
             step={1}
             className="w-full"
           />
 
-          {/* Dot labels */}
-          <div className="flex justify-between">
-            {scenarios.map((s, i) => (
-              <Tooltip key={s.position}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => !s.disabled && setPosition(i)}
-                    className={`flex flex-col items-center gap-0.5 text-[10px] leading-tight transition-all duration-300 ${
-                      s.disabled
-                        ? "opacity-40 cursor-not-allowed"
-                        : i === position
-                        ? "text-risk-base font-semibold scale-110"
-                        : "text-muted-foreground hover:text-foreground cursor-pointer"
-                    }`}
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full transition-all duration-300 ${
-                        i === position
-                          ? "bg-risk-base ring-2 ring-risk-base/30"
-                          : i < position
-                          ? "bg-risk-positive"
-                          : "bg-risk-neutral/40"
-                      }`}
-                    />
-                    <span className="whitespace-nowrap">
-                      {s.measureStatus === "new" && "✨ "}
-                      {s.shortLabel}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  <p className="font-medium">{s.label}</p>
-                  <p>ALE: {formatCurrency(s.ale)}</p>
-                  {s.disabled && (
-                    <p className="text-risk-warning">Недостаточно данных</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            ))}
+          {/* Measure markers on slider */}
+          <div className="relative h-6">
+            {measureMonthIndices.map((idx) => {
+              const m = timelineData[idx];
+              const pct =
+                timelineData.length > 1
+                  ? ((idx - firstMeasureIdx) / (timelineData.length - 1 - firstMeasureIdx)) * 100
+                  : 0;
+              return (
+                <Tooltip key={m.measureId}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => {
+                        setSliderValue(idx);
+                        if (m.measureId && onMeasureClick) onMeasureClick(m.measureId);
+                      }}
+                      className="absolute -translate-x-1/2 flex flex-col items-center gap-0.5"
+                      style={{ left: `${pct}%` }}
+                    >
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full border-2 transition-all ${
+                          idx <= sliderValue
+                            ? m.measureStatus === "new"
+                              ? "bg-risk-warning border-risk-warning/50"
+                              : "bg-risk-base border-risk-base/50"
+                            : "bg-risk-neutral/30 border-risk-neutral/20"
+                        }`}
+                      />
+                      <span
+                        className={`text-[9px] whitespace-nowrap ${
+                          idx <= sliderValue
+                            ? "text-foreground font-medium"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {m.measureStatus === "new" && "✨ "}
+                        М{measureMonthIndices.indexOf(idx) + 1}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs max-w-[200px]">
+                    <p className="font-medium">{m.measureName}</p>
+                    <p>ALE после: {formatCurrency(m.ale)}</p>
+                    <p>{monthLabel(m.month)}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
           </div>
+        </div>
+
+        {/* Current position info */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {monthLabel(currentPoint?.month ?? minMonth)}
+          </span>
+          <span>·</span>
+          <span>
+            Активных мер: {activeMeasuresAtSlider.length} из {activeMeasures.length}
+          </span>
+          {visibleEvents.length > 0 && (
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-1 text-risk-negative">
+                <Zap className="h-3 w-3" />
+                {visibleEvents.length} инцидент(ов)
+              </span>
+            </>
+          )}
         </div>
 
         {/* KPI Metrics + Measure contributions */}
         <div className="grid gap-4 md:grid-cols-2">
-          {/* Metrics */}
           <Card className="border border-border bg-risk-bg">
             <CardContent className="grid grid-cols-2 gap-3 p-4">
               <MetricBox
@@ -271,7 +528,7 @@ export default function MeasureImpactSlider({
                 sub={`${efficiency}%`}
                 negative={isNegative}
               />
-              <MetricBox label="Затраты" value={formatCurrency(current.totalCost)} />
+              <MetricBox label="Затраты" value={formatCurrency(totalCost)} />
               <MetricBox
                 label="ROI"
                 value={roi === "—" ? roi : `${roi}%`}
@@ -284,29 +541,56 @@ export default function MeasureImpactSlider({
             </CardContent>
           </Card>
 
-          {/* Measure contribution list */}
           <div className="hidden md:block">
             <MeasureList
               measures={activeMeasures}
               aleBase={aleBase}
-              activePosition={position}
+              currentMonth={currentPoint?.month ?? ""}
               onMeasureClick={onMeasureClick}
             />
           </div>
         </div>
+
+        {/* Events list */}
+        {visibleEvents.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              <Zap className="h-3 w-3 text-risk-negative" />
+              Инциденты в периоде
+            </p>
+            <div className="space-y-1.5">
+              {visibleEvents.slice(-5).map((e) => (
+                <div
+                  key={e.id}
+                  className="flex items-center justify-between rounded-lg border border-risk-negative/20 bg-risk-negative/5 px-3 py-2 text-sm"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-muted-foreground">
+                      {monthLabel(parseMonth(e.date))}
+                    </span>
+                    <span className="truncate">{e.description}</span>
+                  </div>
+                  <span className="text-risk-negative font-medium shrink-0 ml-2">
+                    -{formatCurrency(e.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Mobile accordion */}
         <div className="md:hidden">
           <Accordion type="single" collapsible>
             <AccordionItem value="measures" className="border-none">
               <AccordionTrigger className="py-2 text-sm font-medium">
-                Вклад мер ({activeMeasures.length})
+                Вклад мер ({activeMeasuresAtSlider.length})
               </AccordionTrigger>
               <AccordionContent>
                 <MeasureList
                   measures={activeMeasures}
                   aleBase={aleBase}
-                  activePosition={position}
+                  currentMonth={currentPoint?.month ?? ""}
                   onMeasureClick={onMeasureClick}
                 />
               </AccordionContent>
@@ -358,12 +642,12 @@ function MetricBox({
 function MeasureList({
   measures,
   aleBase,
-  activePosition,
+  currentMonth,
   onMeasureClick,
 }: {
   measures: Measure[];
   aleBase: number;
-  activePosition: number;
+  currentMonth: string;
   onMeasureClick?: (id: string) => void;
 }) {
   return (
@@ -372,13 +656,7 @@ function MeasureList({
       {measures.map((m, i) => {
         const prevAle = i === 0 ? aleBase : measures[i - 1].aleAfter;
         const delta = prevAle - m.aleAfter;
-        const isActive = i < activePosition;
-        const statusVariant =
-          m.status === "implemented"
-            ? "implemented"
-            : m.status === "new"
-            ? "new"
-            : "deleted";
+        const isActive = parseMonth(m.implementedAt) <= currentMonth;
         const statusLabel =
           m.status === "implemented"
             ? "Реализована"
@@ -393,7 +671,7 @@ function MeasureList({
             className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition-all duration-200 ${
               isActive
                 ? "border-risk-base/20 bg-risk-base/5"
-                : "border-border bg-card hover:bg-accent/50"
+                : "border-border bg-card hover:bg-accent/50 opacity-50"
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -411,7 +689,7 @@ function MeasureList({
                 {delta >= 0 ? "-" : "+"}
                 {formatCurrency(Math.abs(delta))}
               </span>
-              <Badge variant={statusVariant as any}>{statusLabel}</Badge>
+              <Badge variant={m.status as any}>{statusLabel}</Badge>
             </div>
           </button>
         );
