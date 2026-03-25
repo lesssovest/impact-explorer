@@ -78,26 +78,17 @@ export default function MeasureImpactSlider({
   );
 
   const scenarios: Scenario[] = useMemo(() => {
-    const base: Scenario = {
-      position: 0,
-      label: "Базовый",
-      shortLabel: "База",
-      appliedMeasures: [],
-      ale: aleBase,
-      totalCost: 0,
-    };
-
     let cumCost = 0;
-    const rest = activeMeasures.map((m, i) => {
+    return activeMeasures.map((m, i) => {
       cumCost += m.cost;
       const disabled = !m.aleAfter && !m.effectiveness;
       return {
-        position: i + 1,
+        position: i,
         label: activeMeasures
           .slice(0, i + 1)
           .map((_, idx) => `Мера ${idx + 1}`)
           .join(" + "),
-        shortLabel: `+М${i + 1}`,
+        shortLabel: `М${i + 1}`,
         appliedMeasures: activeMeasures.slice(0, i + 1).map((x) => x.id),
         ale: disabled ? (i > 0 ? activeMeasures[i - 1].aleAfter : aleBase) : m.aleAfter,
         totalCost: cumCost,
@@ -106,8 +97,6 @@ export default function MeasureImpactSlider({
         disabled,
       } satisfies Scenario;
     });
-
-    return [base, ...rest];
   }, [aleBase, activeMeasures]);
 
   const [position, setPosition] = useState(0);
