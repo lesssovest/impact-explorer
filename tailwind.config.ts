@@ -47,6 +47,15 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        risk: {
+          base: "hsl(var(--risk-base))",
+          positive: "hsl(var(--risk-positive))",
+          negative: "hsl(var(--risk-negative))",
+          neutral: "hsl(var(--risk-neutral))",
+          warning: "hsl(var(--risk-warning))",
+          bg: "hsl(var(--risk-bg))",
+          text: "hsl(var(--risk-text))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

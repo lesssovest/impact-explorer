@@ -53,6 +53,14 @@ All colors MUST be HSL.
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --risk-base: 217 91% 60%;
+    --risk-positive: 160 84% 39%;
+    --risk-negative: 0 84% 60%;
+    --risk-neutral: 220 9% 46%;
+    --risk-warning: 38 92% 50%;
+    --risk-bg: 210 20% 98%;
+    --risk-text: 221 39% 11%;
   }
 
   .dark {
