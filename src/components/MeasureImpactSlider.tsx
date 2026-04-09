@@ -309,27 +309,9 @@ export default function MeasureImpactSlider({
     ale: p.ale,
     aleVisible: i <= sliderValue ? p.ale : undefined,
     aleFuture: i >= sliderValue ? p.ale : undefined,
-    eventAmount: p.events.length > 0 ? p.events.reduce((s, e) => s + e.amount, 0) : undefined,
-    hasEvent: p.events.length > 0,
-    isMeasure: p.isMeasure,
+    forecast: aleBase, // flat forecast line at aleBase level
     idx: i,
   }));
-
-  // Custom dot for events
-  const EventDot = (props: any) => {
-    const { cx, cy, payload } = props;
-    if (!payload?.hasEvent || payload.idx > sliderValue) return null;
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={5}
-        fill="hsl(var(--risk-negative))"
-        stroke="hsl(var(--background))"
-        strokeWidth={2}
-      />
-    );
-  };
 
   return (
     <Card className="border border-border bg-card overflow-hidden">
