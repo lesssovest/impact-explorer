@@ -344,16 +344,16 @@ export default function MeasureImpactSlider({
                   width={70}
                   className="fill-muted-foreground"
                 />
-                {/* Base ALE reference */}
-                <ReferenceLine
-                  y={aleBase}
-                  stroke="hsl(var(--risk-neutral))"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: `База: ${formatCurrency(aleBase)}`,
-                    position: "insideTopRight",
-                    style: { fontSize: 10, fill: "hsl(var(--risk-neutral))" },
-                  }}
+                {/* Forecast line (прогноз потерь без мер) */}
+                <Area
+                  type="monotone"
+                  dataKey="forecast"
+                  fill="none"
+                  stroke="hsl(var(--risk-negative) / 0.4)"
+                  strokeWidth={1.5}
+                  strokeDasharray="6 3"
+                  animationDuration={300}
+                  dot={false}
                 />
                 {/* Measure implementation lines */}
                 {timelineData
