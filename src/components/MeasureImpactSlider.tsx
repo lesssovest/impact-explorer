@@ -403,11 +403,6 @@ export default function MeasureImpactSlider({
                   animationDuration={300}
                   connectNulls={false}
                 />
-                {/* Event dots */}
-                <Scatter
-                  dataKey="eventAmount"
-                  shape={<EventDot />}
-                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
