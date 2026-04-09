@@ -21,9 +21,6 @@ import {
   Area,
   ComposedChart,
   ReferenceLine,
-  Scatter,
-  Cell,
-  Dot,
 } from "recharts";
 import { AlertTriangle, Info, Sparkles, Target, Zap } from "lucide-react";
 
