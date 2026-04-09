@@ -19,28 +19,11 @@ const demoMeasures = [
     effectiveness: 40,
     cost: 800_000,
     order: 2,
-    implementedAt: "2025-07",
-  },
-  {
-    id: "KUPER-MSR-45",
-    name: "Система видеонаблюдения на складах",
-    status: "implemented" as const,
-    aleAfter: 1_800_000,
-    effectiveness: 28,
-    cost: 2_000_000,
-    order: 3,
-    implementedAt: "2025-11",
+    implementedAt: "2025-09",
   },
 ];
 
-const demoEvents = [
-  { id: "evt-1", date: "2025-01", amount: 320_000, description: "Хищение со склада №3" },
-  { id: "evt-2", date: "2025-02", amount: 150_000, description: "Недостача при инвентаризации" },
-  { id: "evt-3", date: "2025-05", amount: 80_000, description: "Пропажа ТМЦ (мелкая)" },
-  { id: "evt-4", date: "2025-08", amount: 200_000, description: "Кража оборудования" },
-  { id: "evt-5", date: "2025-10", amount: 50_000, description: "Недостача расходных материалов" },
-  { id: "evt-6", date: "2026-01", amount: 30_000, description: "Мелкая недостача" },
-];
+const demoEvents: any[] = [];
 
 const demoAleHistory = [
   { month: "2024-12", ale: 6_200_000 },

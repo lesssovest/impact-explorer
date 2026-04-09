@@ -21,9 +21,6 @@ import {
   Area,
   ComposedChart,
   ReferenceLine,
-  Scatter,
-  Cell,
-  Dot,
 } from "recharts";
 import { AlertTriangle, Info, Sparkles, Target, Zap } from "lucide-react";
 
@@ -309,27 +306,9 @@ export default function MeasureImpactSlider({
     ale: p.ale,
     aleVisible: i <= sliderValue ? p.ale : undefined,
     aleFuture: i >= sliderValue ? p.ale : undefined,
-    eventAmount: p.events.length > 0 ? p.events.reduce((s, e) => s + e.amount, 0) : undefined,
-    hasEvent: p.events.length > 0,
-    isMeasure: p.isMeasure,
+    forecast: aleBase, // flat forecast line at aleBase level
     idx: i,
   }));
-
-  // Custom dot for events
-  const EventDot = (props: any) => {
-    const { cx, cy, payload } = props;
-    if (!payload?.hasEvent || payload.idx > sliderValue) return null;
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={5}
-        fill="hsl(var(--risk-negative))"
-        stroke="hsl(var(--background))"
-        strokeWidth={2}
-      />
-    );
-  };
 
   return (
     <Card className="border border-border bg-card overflow-hidden">
@@ -362,16 +341,16 @@ export default function MeasureImpactSlider({
                   width={70}
                   className="fill-muted-foreground"
                 />
-                {/* Base ALE reference */}
-                <ReferenceLine
-                  y={aleBase}
-                  stroke="hsl(var(--risk-neutral))"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: `База: ${formatCurrency(aleBase)}`,
-                    position: "insideTopRight",
-                    style: { fontSize: 10, fill: "hsl(var(--risk-neutral))" },
-                  }}
+                {/* Forecast line (прогноз потерь без мер) */}
+                <Area
+                  type="monotone"
+                  dataKey="forecast"
+                  fill="none"
+                  stroke="hsl(var(--risk-negative) / 0.4)"
+                  strokeWidth={1.5}
+                  strokeDasharray="6 3"
+                  animationDuration={300}
+                  dot={false}
                 />
                 {/* Measure implementation lines */}
                 {timelineData
@@ -420,11 +399,6 @@ export default function MeasureImpactSlider({
                   strokeDasharray="4 4"
                   animationDuration={300}
                   connectNulls={false}
-                />
-                {/* Event dots */}
-                <Scatter
-                  dataKey="eventAmount"
-                  shape={<EventDot />}
                 />
               </ComposedChart>
             </ResponsiveContainer>
