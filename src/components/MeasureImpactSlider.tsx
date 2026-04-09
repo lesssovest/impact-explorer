@@ -300,13 +300,15 @@ export default function MeasureImpactSlider({
   }
 
   // Chart data: only show up to slider for the filled area
+  // Forecast grows ~8% per year from aleBase starting at the first month
+  const monthlyGrowthRate = 0.08 / 12;
   const chartDataFull = timelineData.map((p, i) => ({
     name: monthLabel(p.month),
     month: p.month,
     ale: p.ale,
     aleVisible: i <= sliderValue ? p.ale : undefined,
     aleFuture: i >= sliderValue ? p.ale : undefined,
-    forecast: aleBase, // flat forecast line at aleBase level
+    forecast: Math.round(aleBase * (1 + monthlyGrowthRate * i)),
     idx: i,
   }));
 
@@ -351,6 +353,21 @@ export default function MeasureImpactSlider({
                   strokeDasharray="6 3"
                   animationDuration={300}
                   dot={false}
+                  label={({ index, x, y, value }: any) => {
+                    if (index !== chartDataFull.length - 1) return null;
+                    return (
+                      <text
+                        x={x}
+                        y={y - 8}
+                        textAnchor="end"
+                        fill="hsl(var(--risk-negative))"
+                        fontSize={10}
+                        fontWeight={500}
+                      >
+                        Прогноз потерь
+                      </text>
+                    );
+                  }}
                 />
                 {/* Measure implementation lines */}
                 {timelineData
