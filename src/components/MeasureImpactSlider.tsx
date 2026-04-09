@@ -353,6 +353,21 @@ export default function MeasureImpactSlider({
                   strokeDasharray="6 3"
                   animationDuration={300}
                   dot={false}
+                  label={({ index, x, y, value }: any) => {
+                    if (index !== chartDataFull.length - 1) return null;
+                    return (
+                      <text
+                        x={x}
+                        y={y - 8}
+                        textAnchor="end"
+                        fill="hsl(var(--risk-negative))"
+                        fontSize={10}
+                        fontWeight={500}
+                      >
+                        Прогноз потерь
+                      </text>
+                    );
+                  }}
                 />
                 {/* Measure implementation lines */}
                 {timelineData
